@@ -1,0 +1,10 @@
+# OS / 編輯器雜項
+Thumbs.db
+Desktop.ini
+.DS_Store
+*.swp
+.vscode/
+
+# 素材來源壓縮檔(解壓後就不需要進版控)
+object/*.zip
+*.zip

@@ -1,0 +1,177 @@
+[
+ {
+  "file": "maki-salmon.glb",
+  "size": 0.12,
+  "tier": 1
+ },
+ {
+  "file": "rice-ball.glb",
+  "size": 0.131,
+  "tier": 1
+ },
+ {
+  "file": "cookie-chocolate.glb",
+  "size": 0.14,
+  "tier": 1
+ },
+ {
+  "file": "egg.glb",
+  "size": 0.165,
+  "tier": 1
+ },
+ {
+  "file": "mushroom.glb",
+  "size": 0.144,
+  "tier": 1
+ },
+ {
+  "file": "cookie.glb",
+  "size": 0.22,
+  "tier": 1
+ },
+ {
+  "file": "donut.glb",
+  "size": 0.283,
+  "tier": 1
+ },
+ {
+  "file": "candy-bar.glb",
+  "size": 0.292,
+  "tier": 1
+ },
+ {
+  "file": "strawberry.glb",
+  "size": 0.182,
+  "tier": 1
+ },
+ {
+  "file": "cherries.glb",
+  "size": 0.171,
+  "tier": 1
+ },
+ {
+  "file": "tomato.glb",
+  "size": 0.17,
+  "tier": 1
+ },
+ {
+  "file": "carrot.glb",
+  "size": 0.716,
+  "tier": 1
+ },
+ {
+  "file": "banana.glb",
+  "size": 0.63,
+  "tier": 2
+ },
+ {
+  "file": "apple.glb",
+  "size": 0.196,
+  "tier": 2
+ },
+ {
+  "file": "ice-cream.glb",
+  "size": 0.378,
+  "tier": 2
+ },
+ {
+  "file": "burger-cheese.glb",
+  "size": 0.378,
+  "tier": 2
+ },
+ {
+  "file": "sandwich.glb",
+  "size": 0.387,
+  "tier": 2
+ },
+ {
+  "file": "sausage.glb",
+  "size": 0.371,
+  "tier": 2
+ },
+ {
+  "file": "cupcake.glb",
+  "size": 0.355,
+  "tier": 2
+ },
+ {
+  "file": "donut-sprinkles.glb",
+  "size": 0.283,
+  "tier": 2
+ },
+ {
+  "file": "pancakes.glb",
+  "size": 0.473,
+  "tier": 2
+ },
+ {
+  "file": "avocado.glb",
+  "size": 0.402,
+  "tier": 2
+ },
+ {
+  "file": "paprika.glb",
+  "size": 0.199,
+  "tier": 2
+ },
+ {
+  "file": "pear.glb",
+  "size": 0.271,
+  "tier": 2
+ },
+ {
+  "file": "orange.glb",
+  "size": 0.17,
+  "tier": 2
+ },
+ {
+  "file": "lollypop.glb",
+  "size": 0.38,
+  "tier": 2
+ },
+ {
+  "file": "burger.glb",
+  "size": 0.44,
+  "tier": 3
+ },
+ {
+  "file": "pizza.glb",
+  "size": 0.842,
+  "tier": 3
+ },
+ {
+  "file": "cake-birthday.glb",
+  "size": 0.83,
+  "tier": 3
+ },
+ {
+  "file": "cake.glb",
+  "size": 0.83,
+  "tier": 3
+ },
+ {
+  "file": "pineapple.glb",
+  "size": 0.472,
+  "tier": 3
+ },
+ {
+  "file": "cauliflower.glb",
+  "size": 0.404,
+  "tier": 3
+ },
+ {
+  "file": "watermelon.glb",
+  "size": 0.476,
+  "tier": 3
+ },
+ {
+  "file": "turkey.glb",
+  "size": 0.748,
+  "tier": 3
+ },
+ {
+  "file": "bread.glb",
+  "size": 0.442,
+  "tier": 3
+ }
+]

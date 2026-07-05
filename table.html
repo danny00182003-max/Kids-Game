@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>餐桌大胃王</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body { width:100%; height:100%; overflow:hidden; overscroll-behavior:none;
+    font-family:-apple-system,BlinkMacSystemFont,"PingFang TC","Microsoft JhengHei",sans-serif;
+    background:#e8d5c4; touch-action:none; }
+  #app { position:fixed; inset:0; }
+  canvas { display:block; }
+
+  .hud { position:fixed; z-index:10; pointer-events:none; user-select:none; }
+  #timer { top:14px; left:14px; background:rgba(255,255,255,.92); border-radius:14px;
+    padding:7px 16px; display:flex; align-items:center; gap:7px; box-shadow:0 2px 8px rgba(0,0,0,.12); }
+  #score  { top:14px; right:14px; background:rgba(255,255,255,.92); border-radius:14px;
+    padding:7px 16px; display:flex; align-items:center; gap:7px; box-shadow:0 2px 8px rgba(0,0,0,.12); }
+  #size   { bottom:14px; left:14px; background:rgba(255,255,255,.86); border-radius:12px;
+    padding:5px 13px; box-shadow:0 2px 8px rgba(0,0,0,.1); }
+  .hud .ico { font-size:19px; }
+  .hud .val { font-size:19px; font-weight:700; color:#3a2e28; font-variant-numeric:tabular-nums; }
+  #size .val { font-size:15px; font-weight:600; }
+
+  #hint { position:fixed; bottom:16px; left:50%; transform:translateX(-50%); z-index:10;
+    background:rgba(58,46,40,.82); color:#fff; font-size:14px; padding:8px 18px; border-radius:20px;
+    pointer-events:none; transition:opacity .6s; }
+
+  #overlay { position:fixed; inset:0; z-index:30; display:flex; flex-direction:column;
+    align-items:center; justify-content:center; background:rgba(45,30,22,.78);
+    backdrop-filter:blur(6px); text-align:center; padding:24px; }
+  #overlay h1 { color:#fff; font-size:34px; margin-bottom:6px; letter-spacing:1px; }
+  #overlay p  { color:#ffe; font-size:17px; margin-bottom:26px; opacity:.9; }
+  #overlay .big { font-size:52px; margin-bottom:14px; }
+  .btn { pointer-events:auto; cursor:pointer; border:none; background:#ff9f4a;
+    color:#fff; font-size:20px; font-weight:700; padding:15px 46px; border-radius:30px;
+    box-shadow:0 5px 0 #d9752b; transition:transform .08s, box-shadow .08s; font-family:inherit; }
+  .btn:active { transform:translateY(4px); box-shadow:0 1px 0 #d9752b; }
+
+  #loading { position:fixed; inset:0; z-index:40; display:flex; flex-direction:column;
+    align-items:center; justify-content:center; background:#e8d5c4; }
+  #loading .spin { width:46px; height:46px; border:5px solid #d9bfa8; border-top-color:#ff9f4a;
+    border-radius:50%; animation:sp 1s linear infinite; margin-bottom:18px; }
+  @keyframes sp { to { transform:rotate(360deg); } }
+  #loading p { color:#6b5344; font-size:16px; font-weight:600; }
+  .hidden { display:none !important; }
+</style>
+</head>
+<body>
+<div id="app"></div>
+
+<div id="timer" class="hud"><span class="ico">⏱️</span><span class="val" id="timerVal">2:00</span></div>
+<div id="score" class="hud"><span class="ico">⭐</span><span class="val" id="scoreVal">0</span></div>
+<div id="size"  class="hud"><span class="val" id="sizeVal">洞的大小 ●</span></div>
+<div id="hint">用手指拖著洞,吃光桌上的食物!</div>
+
+<div id="loading"><div class="spin"></div><p id="loadingText">正在擺上桌上的食物…</p></div>
+
+<div id="overlay" class="hidden">
+  <div class="big" id="ovIcon">🎉</div>
+  <h1 id="ovTitle">時間到!</h1>
+  <p id="ovDesc">你吃掉了好多食物</p>
+  <button class="btn" id="restartBtn">再玩一次</button>
+</div>
+
+<script type="importmap">
+{ "imports": {
+  "three": "./lib/three.module.js",
+  "three/addons/": "./lib/"
+}}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { GLTFLoader } from './lib/loaders/GLTFLoader.js';
+
+const CONFIG = {
+  GAME_SECONDS: 120,
+  TABLE_SIZE: 24,          // 桌面邊長
+  START_RADIUS: 0.42,      // 洞起始半徑
+  GROWTH_PER_EAT: 0.045,   // 每吃一個成長基準
+  FOOD_COUNT: 130,         // 場上食物數
+  MOVE_SPEED: 15,          // 拖曳跟隨速度
+};
+
+let scene, camera, renderer, clock;
+let hole, holeRadius = CONFIG.START_RADIUS;
+let holeMesh, holeGroup;
+let foods = [];           // {mesh, radius, tier, eaten, falling, fallT}
+let foodTemplates = [];   // 載入的模型範本
+let score = 0, timeLeft = CONFIG.GAME_SECONDS, playing = false;
+const targetPos = new THREE.Vector3(0,0,0);
+const holePos = new THREE.Vector3(0,0,0);
+
+init();
+
+async function init(){
+  scene = new THREE.Scene();
+  scene.background = new THREE.Color('#f3e2d0');
+  scene.fog = new THREE.Fog('#f3e2d0', 26, 46);
+
+  const aspect = window.innerWidth/window.innerHeight;
+  camera = new THREE.PerspectiveCamera(48, aspect, 0.1, 200);
+  updateCamera();
+
+  renderer = new THREE.WebGLRenderer({ antialias:true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  document.getElementById('app').appendChild(renderer.domElement);
+
+  // 光
+  const amb = new THREE.AmbientLight(0xffffff, 0.72);
+  scene.add(amb);
+  const sun = new THREE.DirectionalLight(0xfff4e6, 1.5);
+  sun.position.set(8, 16, 10);
+  sun.castShadow = true;
+  sun.shadow.mapSize.set(2048,2048);
+  const d = 18;
+  sun.shadow.camera.left=-d; sun.shadow.camera.right=d;
+  sun.shadow.camera.top=d; sun.shadow.camera.bottom=-d;
+  sun.shadow.camera.near=1; sun.shadow.camera.far=50;
+  sun.shadow.bias = -0.0004;
+  scene.add(sun);
+  const fill = new THREE.DirectionalLight(0xffffff, 0.4);
+  fill.position.set(-8,8,-6);
+  scene.add(fill);
+
+  // 桌布(格紋)
+  makeTable();
+
+  // 洞
+  makeHole();
+
+  window.addEventListener('resize', onResize);
+  setupInput();
+
+  clock = new THREE.Clock();
+  await loadFoods();
+  spawnFoods();
+
+  document.getElementById('loading').classList.add('hidden');
+  playing = true;
+  animate();
+  setTimeout(()=>{ document.getElementById('hint').style.opacity='0'; }, 4000);
+}
+
+function makeTable(){
+  // 格紋桌布材質(程式生成 canvas 貼圖)
+  const c = document.createElement('canvas'); c.width=c.height=512;
+  const ctx = c.getContext('2d');
+  const cells=8, cs=c.width/cells;
+  for(let y=0;y<cells;y++) for(let x=0;x<cells;x++){
+    const even=(x+y)%2===0;
+    ctx.fillStyle = even ? '#f7d5dc' : '#fbe9ed';
+    ctx.fillRect(x*cs,y*cs,cs,cs);
+  }
+  // 細格線
+  ctx.strokeStyle='rgba(214,90,120,.18)'; ctx.lineWidth=2;
+  for(let i=0;i<=cells;i++){ ctx.beginPath(); ctx.moveTo(i*cs,0); ctx.lineTo(i*cs,c.height); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0,i*cs); ctx.lineTo(c.width,i*cs); ctx.stroke(); }
+  const tex = new THREE.CanvasTexture(c);
+  tex.wrapS=tex.wrapT=THREE.RepeatWrapping; tex.repeat.set(3,3);
+  tex.anisotropy = 4;
+
+  const geo = new THREE.PlaneGeometry(CONFIG.TABLE_SIZE, CONFIG.TABLE_SIZE);
+  const mat = new THREE.MeshStandardMaterial({ map:tex, roughness:.9, metalness:0 });
+  const table = new THREE.Mesh(geo, mat);
+  table.rotation.x = -Math.PI/2;
+  table.receiveShadow = true;
+  scene.add(table);
+
+  // 桌子邊框(深色木頭感)
+  const edgeGeo = new THREE.RingGeometry(CONFIG.TABLE_SIZE*0.5, CONFIG.TABLE_SIZE*0.5+2.5, 4, 1);
+  // 用簡單四方外框
+  const frameMat = new THREE.MeshStandardMaterial({ color:'#b5794a', roughness:.8 });
+  const fr = CONFIG.TABLE_SIZE*0.5;
+  const th = 1.2;
+  const mkBar=(w,h,x,z)=>{ const m=new THREE.Mesh(new THREE.BoxGeometry(w,0.6,h),frameMat);
+    m.position.set(x,-0.28,z); m.receiveShadow=true; scene.add(m); };
+  mkBar(CONFIG.TABLE_SIZE+th*2, th, 0, fr+th/2);
+  mkBar(CONFIG.TABLE_SIZE+th*2, th, 0, -fr-th/2);
+  mkBar(th, CONFIG.TABLE_SIZE+th*2, fr+th/2, 0);
+  mkBar(th, CONFIG.TABLE_SIZE+th*2, -fr-th/2, 0);
+}
+
+function makeHole(){
+  holeGroup = new THREE.Group();
+  // 黑色圓盤(洞的視覺)
+  const disk = new THREE.Mesh(
+    new THREE.CircleGeometry(1, 48),
+    new THREE.MeshBasicMaterial({ color:0x0a0a0a })
+  );
+  disk.rotation.x = -Math.PI/2;
+  disk.position.y = 0.02;
+  holeGroup.add(disk);
+  // 洞邊緣一圈深色環,增加立體感
+  const ring = new THREE.Mesh(
+    new THREE.RingGeometry(0.92, 1.06, 48),
+    new THREE.MeshBasicMaterial({ color:0x2a2a2a, side:THREE.DoubleSide })
+  );
+  ring.rotation.x = -Math.PI/2;
+  ring.position.y = 0.03;
+  holeGroup.add(ring);
+  scene.add(holeGroup);
+  holeMesh = holeGroup;
+  updateHoleScale();
+}
+function updateHoleScale(){
+  holeGroup.scale.set(holeRadius, 1, holeRadius);
+}
+
+async function loadFoods(){
+  const loader = new GLTFLoader();
+  const list = await fetch('foods.json').then(r=>r.json());
+  const lt = document.getElementById('loadingText');
+  let done=0;
+  // 並行載入所有食物範本
+  await Promise.all(list.map(async (item)=>{
+    try{
+      const gltf = await loader.loadAsync('models/'+item.file);
+      const root = gltf.scene;
+      const box = new THREE.Box3().setFromObject(root);
+      const c = box.getCenter(new THREE.Vector3());
+      const size = box.getSize(new THREE.Vector3());
+      root.position.sub(c);
+      const wrap = new THREE.Group();
+      wrap.add(root);
+      root.position.y += size.y/2;  // 底部貼齊 y=0
+      root.traverse(o=>{ if(o.isMesh){ o.castShadow=true; o.receiveShadow=true; } });
+      const radius = Math.max(size.x, size.z)/2;
+      foodTemplates.push({ obj:wrap, radius, tier:item.tier, height:size.y });
+    }catch(e){ /* 略過壞檔 */ }
+    done++;
+    lt.textContent = `正在擺上桌上的食物… ${done}/${list.length}`;
+  }));
+}
+
+function spawnFoods(){
+  const half = CONFIG.TABLE_SIZE*0.5 - 1.5;
+  for(let i=0;i<CONFIG.FOOD_COUNT;i++){
+    const t = foodTemplates[Math.floor(Math.random()*foodTemplates.length)];
+    if(!t) continue;
+    const mesh = t.obj.clone(true);
+    let x,z, tries=0;
+    do{ x=(Math.random()*2-1)*half; z=(Math.random()*2-1)*half; tries++; }
+    while(Math.hypot(x,z)<2.2 && tries<10); // 別生在洞起點上
+    mesh.position.set(x,0,z);
+    mesh.rotation.y = Math.random()*Math.PI*2;
+    scene.add(mesh);
+    foods.push({ mesh, radius:t.radius, tier:t.tier, eaten:false, falling:false, fallT:0, x, z });
+  }
+}
+
+// ---- 輸入:拖曳 ----
+const raycaster = new THREE.Raycaster();
+const ndc = new THREE.Vector2();
+const groundPlane = new THREE.Plane(new THREE.Vector3(0,1,0), 0);
+let dragging=false;
+
+function pointerToGround(clientX, clientY){
+  ndc.x = (clientX/window.innerWidth)*2-1;
+  ndc.y = -(clientY/window.innerHeight)*2+1;
+  raycaster.setFromCamera(ndc, camera);
+  const pt = new THREE.Vector3();
+  raycaster.ray.intersectPlane(groundPlane, pt);
+  return pt;
+}
+function setupInput(){
+  const el = renderer.domElement;
+  const down=(x,y)=>{ dragging=true; const p=pointerToGround(x,y); if(p) setTarget(p); };
+  const move=(x,y)=>{ if(!dragging)return; const p=pointerToGround(x,y); if(p) setTarget(p); };
+  const up=()=>{ dragging=false; };
+  el.addEventListener('touchstart', e=>{ down(e.touches[0].clientX,e.touches[0].clientY); }, {passive:true});
+  el.addEventListener('touchmove',  e=>{ move(e.touches[0].clientX,e.touches[0].clientY); }, {passive:true});
+  el.addEventListener('touchend', up);
+  el.addEventListener('mousedown', e=>down(e.clientX,e.clientY));
+  el.addEventListener('mousemove', e=>move(e.clientX,e.clientY));
+  el.addEventListener('mouseup', up);
+}
+function setTarget(p){
+  const half = CONFIG.TABLE_SIZE*0.5 - holeRadius;
+  targetPos.set(
+    Math.max(-half, Math.min(half, p.x)),
+    0,
+    Math.max(-half, Math.min(half, p.z))
+  );
+}
+
+function updateCamera(){
+  // 俯視偏斜,隨洞變大拉遠
+  const dist = 15 + holeRadius*6;
+  camera.position.set(holePos.x, dist*0.92, holePos.z + dist*0.62);
+  camera.lookAt(holePos.x, 0, holePos.z);
+}
+
+function eatCheck(){
+  for(const f of foods){
+    if(f.eaten) continue;
+    const dx = f.mesh.position.x - holePos.x;
+    const dz = f.mesh.position.z - holePos.z;
+    const dist = Math.hypot(dx,dz);
+    // 能吃:食物半徑 < 洞半徑 * 係數,且中心進入洞範圍
+    const canEat = f.radius < holeRadius*0.9;
+    if(dist < holeRadius*0.85){
+      if(canEat && !f.falling){
+        f.falling = true; // 開始被吸入
+      }
+    }
+  }
+}
+
+function updateFalling(dt){
+  for(const f of foods){
+    if(f.falling && !f.eaten){
+      f.fallT += dt;
+      const t = f.fallT/0.45;
+      // 吸向洞心 + 下墜 + 縮小 + 旋轉
+      f.mesh.position.x += (holePos.x - f.mesh.position.x)*Math.min(1,dt*10);
+      f.mesh.position.z += (holePos.z - f.mesh.position.z)*Math.min(1,dt*10);
+      f.mesh.position.y = -t*2.5;
+      const s = Math.max(0, 1-t);
+      f.mesh.scale.setScalar(s);
+      f.mesh.rotation.x += dt*10; f.mesh.rotation.y += dt*8;
+      if(t>=1){
+        f.eaten=true;
+        scene.remove(f.mesh);
+        onEaten(f);
+      }
+    }
+  }
+}
+
+function onEaten(f){
+  score += f.tier*10;
+  document.getElementById('scoreVal').textContent = score;
+  // 成長:吃越大的長越多
+  holeRadius += CONFIG.GROWTH_PER_EAT * f.tier;
+  updateHoleScale();
+  updateSizeLabel();
+}
+function updateSizeLabel(){
+  const dots = holeRadius<0.7?'●':holeRadius<1.1?'●●':holeRadius<1.7?'●●●':'●●●●';
+  document.getElementById('sizeVal').textContent = '洞的大小 '+dots;
+}
+
+function animate(){
+  requestAnimationFrame(animate);
+  const dt = Math.min(clock.getDelta(), 0.05);
+  if(playing){
+    // 洞跟隨目標
+    holePos.x += (targetPos.x - holePos.x)*Math.min(1,dt*CONFIG.MOVE_SPEED);
+    holePos.z += (targetPos.z - holePos.z)*Math.min(1,dt*CONFIG.MOVE_SPEED);
+    holeGroup.position.set(holePos.x, 0, holePos.z);
+    updateCamera();
+    eatCheck();
+    updateFalling(dt);
+
+    // 計時
+    timeLeft -= dt;
+    if(timeLeft<=0){ timeLeft=0; endGame(); }
+    const mm = Math.floor(timeLeft/60), ss = Math.floor(timeLeft%60);
+    document.getElementById('timerVal').textContent = `${mm}:${ss.toString().padStart(2,'0')}`;
+  }
+  renderer.render(scene, camera);
+}
+
+function endGame(){
+  playing=false;
+  const eaten = foods.filter(f=>f.eaten).length;
+  document.getElementById('ovTitle').textContent='時間到!';
+  document.getElementById('ovDesc').textContent=`吃掉 ${eaten} 個食物,得到 ${score} 分`;
+  document.getElementById('ovIcon').textContent = score>800?'🏆':'🎉';
+  document.getElementById('overlay').classList.remove('hidden');
+}
+
+document.getElementById('restartBtn').addEventListener('click', ()=>{
+  // 重置
+  foods.forEach(f=>{ if(!f.eaten) scene.remove(f.mesh); });
+  foods=[]; score=0; timeLeft=CONFIG.GAME_SECONDS; holeRadius=CONFIG.START_RADIUS;
+  holePos.set(0,0,0); targetPos.set(0,0,0);
+  updateHoleScale(); updateSizeLabel();
+  document.getElementById('scoreVal').textContent='0';
+  document.getElementById('overlay').classList.add('hidden');
+  spawnFoods();
+  playing=true;
+});
+
+function onResize(){
+  camera.aspect = window.innerWidth/window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+}
+</script>
+</body>
+</html>
