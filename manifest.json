@@ -1,0 +1,26 @@
+{
+  "name": "玩具屋大黑洞",
+  "short_name": "大黑洞",
+  "description": "操控黑洞,把整間玩具屋吃光光!對戰與無限兩種模式。",
+  "lang": "zh-Hant",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#dccdb8",
+  "theme_color": "#dccdb8",
+  "icons": [
+    {
+      "src": "./icons/icon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./icons/icon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

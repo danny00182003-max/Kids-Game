@@ -8,9 +8,12 @@
 ## 1. 檔案結構
 
 ```
-index.html          遊戲頁面:HTML 骨架 + CSS + 掛載 game.js
+index.html          遊戲頁面:HTML 骨架 + CSS + 掛載 game.js + 掛 PWA
 game.js             ★ 引擎層:玩法邏輯、成長、AI、鏡頭、輸入、音效、HUD
 data.js             ★ 資料層:有哪些模型、放哪、多大、叫什麼
+manifest.json       PWA 身分證:App 名稱、圖示、全螢幕(可加到主畫面)
+sw.js               PWA Service Worker:離線快取(核心預存、模型用到才存)
+icons/icon.png      App 圖示(512+ 方圖;來源在 object/)
 table.html          第一版「餐桌大胃王」(獨立保留,和主遊戲無關)
 foods.json          table.html 專用的舊食物清單
 models/             3D 模型(.glb),依素材包分子資料夾
@@ -192,10 +195,30 @@ data.js  ──(import)──►  game.js
 
 ---
 
-## 5. 版本快取慣例
+## 5. 版本快取慣例(★ 有 PWA 後更重要)
 
 `index.html` 以 `game.js?v=N` 掛載。**每次改完 game.js/data.js 要上線前,把 `N` +1**,
 手機才不會吃到舊快取。(目前為 `v=5`。)
+
+因為加了 PWA 離線快取(`sw.js`),快取變得更黏——舊檔會被存死在手機裡。
+所以改版要**同步改兩個地方**(數字保持一致):
+
+1. `index.html` 的 `game.js?v=N`
+2. `sw.js` 最上方的 `CACHE_VER`(以及它連動的 `CORE_ASSETS` 內 `game.js?v=${CACHE_VER}`)
+
+`CACHE_VER` +1 後,`sw.js` 的 `activate` 會自動清掉舊版快取、抓新版,玩家重開一次即更新。
+**只改 index.html、忘了改 sw.js → 手機會一直卡舊版。**
+
+## 5.1 PWA / 離線(manifest.json + sw.js)
+
+- `manifest.json`:App 名稱、圖示(`icons/icon.png`)、`display:standalone`(全螢幕、可加到主畫面)。
+- `sw.js` 的快取分兩層:
+  - **核心預先快取**(`CORE_ASSETS`):HTML / game.js / data.js / three.module.js / 圖示 /
+    manifest。裝好就全抓 → **離線一定開得起來**。若之後把核心檔案改名或新增,要同步進這份清單。
+  - **模型 runtime 快取**:`.glb`、貼圖、`lib/` 內載入器「用到才存、存了就留」。
+    玩過的素材離線可用,不會第一次就塞爆。
+- 圖示來源放 `object/`,實際使用的是 `icons/icon.png`(方圖、主體置中留邊,勿做圓角/透明底)。
+- 本機測 PWA 要用 `http://localhost`(SW 只在 localhost 或 HTTPS 生效);GitHub Pages 是 HTTPS,線上自動生效。
 
 ---
 
