@@ -195,29 +195,30 @@ data.js  ──(import)──►  game.js
 
 ---
 
-## 5. 版本快取慣例(★ 有 PWA 後更重要)
+## 5. 版本快取慣例(★ 已改自動更新,平常不用碰版本)
 
-`index.html` 以 `game.js?v=N` 掛載。**每次改完 game.js/data.js 要上線前,把 `N` +1**,
-手機才不會吃到舊快取。(目前為 `v=5`。)
+**現行:全自動更新。** `sw.js` 對「會改的檔案」(HTML / game.js / data.js / manifest / 圖示)
+採**網路優先**:每次連線都拿最新的,拿不到才用快取(離線可玩)。
+註冊時 `updateViaCache:'none'` 讓瀏覽器每次都重抓 `sw.js`,新版秒生效。
 
-因為加了 PWA 離線快取(`sw.js`),快取變得更黏——舊檔會被存死在手機裡。
-所以改版要**同步改兩個地方**(數字保持一致):
+所以**一般改動(改玩法、換素材、換圖示)只要 `commit → push`,玩家重開即最新版**,
+不必再手動改 `game.js?v=N` 或 `CACHE_VER`。`index.html` 已改為不帶版本參數的 `./game.js`。
 
-1. `index.html` 的 `game.js?v=N`
-2. `sw.js` 最上方的 `CACHE_VER`(以及它連動的 `CORE_ASSETS` 內 `game.js?v=${CACHE_VER}`)
+### 什麼時候才動 `CACHE_VER`(sw.js 最上方)
 
-`CACHE_VER` +1 後,`sw.js` 的 `activate` 會自動清掉舊版快取、抓新版,玩家重開一次即更新。
-**只改 index.html、忘了改 sw.js → 手機會一直卡舊版。**
+只有想「**強制清掉所有人手機上的舊快取,連模型 `.glb` 都重抓**」時才 +1
+(例如換了大量模型、或懷疑某人卡在壞掉的舊快取)。平常不用碰。
 
 ## 5.1 PWA / 離線(manifest.json + sw.js)
 
 - `manifest.json`:App 名稱、圖示(`icons/icon.png`)、`display:standalone`(全螢幕、可加到主畫面)。
-- `sw.js` 的快取分兩層:
-  - **核心預先快取**(`CORE_ASSETS`):HTML / game.js / data.js / three.module.js / 圖示 /
-    manifest。裝好就全抓 → **離線一定開得起來**。若之後把核心檔案改名或新增,要同步進這份清單。
-  - **模型 runtime 快取**:`.glb`、貼圖、`lib/` 內載入器「用到才存、存了就留」。
-    玩過的素材離線可用,不會第一次就塞爆。
-- 圖示來源放 `object/`,實際使用的是 `icons/icon.png`(方圖、主體置中留邊,勿做圓角/透明底)。
+- `sw.js` 的快取分兩種策略:
+  - **網路優先**(會改的檔案):HTML / game.js / data.js / manifest / **圖示**。
+    永遠拿最新,離線才回退快取。新增這類核心檔案時,補進 `CORE_ASSETS`(離線墊底用)。
+  - **快取優先**(幾乎不變的大檔):模型 `.glb`、貼圖、`lib/` 載入器「用到才存、存了就留」,
+    省流量、載入快。
+- 圖示來源放 `object/`,實際使用的是 `icons/icon.png`。**換圖 SOP:把新圖存成 `icons/icon.png`
+  覆蓋 → `commit → push`**(不必動版本)。圖建議方圖、主體飽滿、勿透明底/圓角。
 - 本機測 PWA 要用 `http://localhost`(SW 只在 localhost 或 HTTPS 生效);GitHub Pages 是 HTTPS,線上自動生效。
 
 ---

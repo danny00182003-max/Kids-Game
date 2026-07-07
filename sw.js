@@ -1,37 +1,38 @@
 // ============================================================
-// Service Worker — 玩具屋大黑洞 離線快取
+// Service Worker — 玩具屋大黑洞 離線快取(全自動更新版)
 // ------------------------------------------------------------
-// 快取策略:
-//   核心程式(HTML/JS/Three.js/圖示/manifest)→ 預先快取(install 時全抓)
-//     保證「開得起來」,離線也能進遊戲。
-//   模型 .glb / 貼圖 → runtime 快取(用到才存、存了就留)
-//     玩過一次的素材離線可用,不必第一次就狂塞一堆大檔。
+// 策略總覽(★ 平常不用碰版本號):
+//   會改的檔案(HTML / game.js / data.js / manifest / 圖示)
+//      → 「網路優先」:每次連線都拿最新的,拿不到才用快取(離線可玩)。
+//        所以你改完 commit→push,手機重開就是新版,不必手動 +1。
+//   幾乎不變的大檔(模型 .glb / 貼圖 / lib 載入器)
+//      → 「快取優先」:存過就直接用,省流量、載入快。
 //
-// ★ 改版規範:每次改完 game.js / data.js 要上線,
-//   把 CACHE_VER +1(和 index.html 的 game.js?v=N 一起 +1)。
-//   舊快取會在新版啟用時自動清掉,手機才不會吃到舊版。
+// CACHE_VER 的角色退化為「核彈按鈕」:
+//   平常都不用動;只有想「強制清掉所有人手機上的舊快取(含模型)」時才 +1。
 // ============================================================
 
-const CACHE_VER  = 6;                       // ← 和 index.html 的 game.js?v=N 同步
+const CACHE_VER  = 6;                       // 平常不用動;要強制全清才 +1
 const CORE_CACHE = `khole-core-v${CACHE_VER}`;
 const RUN_CACHE  = `khole-runtime-v${CACHE_VER}`;
 
-// 核心資源:離線也一定要能開遊戲的最小集合
+// 離線也一定要能開遊戲的最小集合(install 時先抓一份墊底,之後靠網路優先保持最新)
 const CORE_ASSETS = [
   './',
   './index.html',
   './manifest.json',
-  `./game.js?v=${CACHE_VER}`,
+  './game.js',
   './data.js',
   './lib/three.module.js',
   './icons/icon.png',
 ];
 
-// ---- 安裝:預先抓核心資源 ----
+// ---- 安裝:預先抓核心資源當離線墊底 ----
 self.addEventListener('install', (e) => {
   e.waitUntil(
     caches.open(CORE_CACHE)
-      .then((c) => c.addAll(CORE_ASSETS))
+      // 個別抓,單一檔失敗不整批爆掉
+      .then((c) => Promise.allSettled(CORE_ASSETS.map((u) => c.add(u))))
       .then(() => self.skipWaiting())       // 新 SW 裝好就搶著接手
   );
 });
@@ -57,12 +58,14 @@ self.addEventListener('fetch', (e) => {
   const url = new URL(req.url);
   if (url.origin !== self.location.origin) return;  // 只管同源
 
-  // 模型 / 貼圖 / lib 內的載入器 → 快取優先,沒有才連線並存起來(runtime)
-  const isAsset = /\.(glb|png|jpg|jpeg|webp|bin|hdr)$/i.test(url.pathname)
+  // 「快取優先」只給幾乎不變的大檔:模型 .glb、貼圖、lib 內的載入器。
+  // 注意:圖示 icons/icon.png 故意不走這裡 → 讓它跟著網路優先自動更新。
+  const isBigAsset =
+    /\.(glb|bin|hdr)$/i.test(url.pathname)
     || url.pathname.includes('/models/')
     || url.pathname.includes('/lib/');
 
-  if (isAsset) {
+  if (isBigAsset) {
     e.respondWith(
       caches.match(req).then((hit) =>
         hit ||
@@ -76,7 +79,8 @@ self.addEventListener('fetch', (e) => {
     return;
   }
 
-  // 其餘(HTML / 核心 JS 等)→ 網路優先,失敗回退快取(離線可玩)
+  // 其餘(HTML / game.js / data.js / manifest / 圖示…)→ 網路優先,
+  // 抓到就順手更新快取;離線失敗才回退快取(仍可玩)。
   e.respondWith(
     fetch(req)
       .then((res) => {
@@ -84,6 +88,8 @@ self.addEventListener('fetch', (e) => {
         caches.open(CORE_CACHE).then((c) => c.put(req, copy));
         return res;
       })
-      .catch(() => caches.match(req).then((hit) => hit || caches.match('./index.html')))
+      .catch(() =>
+        caches.match(req).then((hit) => hit || caches.match('./index.html'))
+      )
   );
 });
