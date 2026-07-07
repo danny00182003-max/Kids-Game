@@ -12,7 +12,7 @@
 //   舊快取會在新版啟用時自動清掉,手機才不會吃到舊版。
 // ============================================================
 
-const CACHE_VER  = 5;                       // ← 和 index.html 的 game.js?v=N 同步
+const CACHE_VER  = 6;                       // ← 和 index.html 的 game.js?v=N 同步
 const CORE_CACHE = `khole-core-v${CACHE_VER}`;
 const RUN_CACHE  = `khole-runtime-v${CACHE_VER}`;
 
